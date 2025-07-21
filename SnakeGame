@@ -1,0 +1,128 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract SnakeGame is Ownable {
+    // Struct for Game State
+    struct Game {
+        address player;
+        uint256 score;
+        bool isActive;
+        uint256[2][] snake; // Array of [x, y] coordinates for snake segments
+        uint256[2] food; // [x, y] coordinates for food
+        uint256 gridSize; // e.g., 10 for a 10x10 grid
+    }
+
+    // Enum for Direction
+    enum Direction { Up, Down, Left, Right }
+
+    // Mapping to store games per player
+    mapping(address => Game) public games;
+
+    // Events
+    event GameStarted(address indexed player, uint256 gridSize);
+    event MoveMade(address indexed player, Direction direction, uint256 score);
+    event FoodEaten(address indexed player, uint256 newScore, uint256[2] newFood);
+    event GameOver(address indexed player, uint256 finalScore);
+
+    constructor() Ownable(msg.sender) {}
+
+    // Start a new game
+    function startGame(uint256 gridSize) external {
+        require(gridSize >= 5 && gridSize <= 20, "Grid size must be between 5 and 20");
+        require(!games[msg.sender].isActive, "Game already active");
+
+        // Initialize snake at position (1,1) with length 1
+        uint256[2][] memory initialSnake = new uint256[2][](1);
+        initialSnake[0] = [1, 1];
+
+        // Place food at a random position (simplified to fixed for now)
+        uint256[2] memory initialFood = [3, 3];
+
+        games[msg.sender] = Game(msg.sender, 0, true, initialSnake, initialFood, gridSize);
+        emit GameStarted(msg.sender, gridSize);
+    }
+
+    // Make a move
+    function move(Direction direction) external {
+        require(games[msg.sender].isActive, "No active game");
+
+        Game storage game = games[msg.sender];
+        uint256[2] memory head = game.snake[0];
+        uint256 newX = head[0];
+        uint256 newY = head[1];
+
+        // Update head position based on direction
+        if (direction == Direction.Up) {
+            newY -= 1;
+        } else if (direction == Direction.Down) {
+            newY += 1;
+        } else if (direction == Direction.Left) {
+            newX -= 1;
+        } else if (direction == Direction.Right) {
+            newX += 1;
+        }
+
+        // Check boundaries
+        require(newX > 0 && newX <= game.gridSize && newY > 0 && newY <= game.gridSize, "Out of bounds");
+
+        // Check collision with self
+        for (uint256 i = 0; i < game.snake.length; i++) {
+            require(!(game.snake[i][0] == newX && game.snake[i][1] == newY), "Collision with self");
+        }
+
+        // Create new snake array
+        uint256[2][] memory newSnake = new uint256[2][](game.snake.length);
+        newSnake[0] = [newX, newY];
+
+        bool ateFood = (newX == game.food[0] && newY == game.food[1]);
+
+        // Copy snake body (grow if food eaten, otherwise pop tail)
+        for (uint256 i = 1; i < game.snake.length; i++) {
+            newSnake[i] = game.snake[i - 1];
+        }
+        if (ateFood) {
+            // Extend snake by keeping the tail
+            newSnake = new uint256[2][](game.snake.length + 1);
+            newSnake[0] = [newX, newY];
+            for (uint256 i = 1; i < game.snake.length; i++) {
+                newSnake[i] = game.snake[i - 1];
+            }
+            newSnake[game.snake.length] = game.snake[game.snake.length - 1];
+
+            // Update score and place new food (simplified to fixed position)
+            game.score += 1;
+            game.food = [(newX % game.gridSize) + 1, (newY % game.gridSize) + 1];
+            emit FoodEaten(msg.sender, game.score, game.food);
+        }
+
+        // Update snake
+        game.snake = newSnake;
+        emit MoveMade(msg.sender, direction, game.score);
+    }
+
+    // End game
+    function endGame() external {
+        require(games[msg.sender].isActive, "No active game");
+        uint256 finalScore = games[msg.sender].score;
+        games[msg.sender].isActive = false;
+        emit GameOver(msg.sender, finalScore);
+    }
+
+    // Get game state
+    function getGameState(address player)
+        external
+        view
+        returns (
+            uint256 score,
+            bool isActive,
+            uint256[2][] memory snake,
+            uint256[2] memory food,
+            uint256 gridSize
+        )
+    {
+        Game memory game = games[player];
+        return (game.score, game.isActive, game.snake, game.food, game.gridSize);
+    }
+}
