@@ -1,0 +1,200 @@
+import tkinter as tk
+from tkinter import messagebox, ttk
+import random
+import sqlite3
+from datetime import datetime
+
+class SnakeGame:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Extended Snake Game")
+        self.root.geometry("600x650")
+
+        # Game variables
+        self.GAME_WIDTH = 500
+        self.GAME_HEIGHT = 500
+        self.SPEED = {"Slow": 150, "Medium": 100, "Fast": 50}
+        self.SQUARE_SIZE = 25
+        self.snake = [(100, 100)]
+        self.food = None
+        self.power_up = None
+        self.direction = "right"
+        self.score = 0
+        self.game_over = False
+        self.paused = False
+        self.difficulty = "Medium"
+
+        # Initialize SQLite database
+        self.conn = sqlite3.connect("snake_highscores.db")
+        self.create_table()
+
+        # GUI Elements
+        # Difficulty selection
+        tk.Label(root, text="Select Difficulty:", font=("Arial", 12)).pack(pady=5)
+        self.difficulty_var = tk.StringVar(value="Medium")
+        ttk.Combobox(root, textvariable=self.difficulty_var, values=["Slow", "Medium", "Fast"], state="readonly").pack()
+
+        # Score display
+        self.score_var = tk.StringVar(value="Score: 0")
+        tk.Label(root, textvariable=self.score_var, font=("Arial", 12)).pack(pady=5)
+
+        # Canvas for game
+        self.canvas = tk.Canvas(root, width=self.GAME_WIDTH, height=self.GAME_HEIGHT, bg="black", bd=2, relief="sunken")
+        self.canvas.pack(pady=10)
+
+        # Buttons
+        tk.Button(root, text="Start Game", command=self.start_game, font=("Arial", 12)).pack(pady=5)
+        tk.Button(root, text="View High Scores", command=self.view_high_scores, font=("Arial", 12)).pack(pady=5)
+
+        # Bind keys
+        self.root.bind("<Left>", lambda event: self.change_direction("left"))
+        self.root.bind("<Right>", lambda event: self.change_direction("right"))
+        self.root.bind("<Up>", lambda event: self.change_direction("up"))
+        self.root.bind("<Down>", lambda event: self.change_direction("down"))
+        self.root.bind("<p>", lambda event: self.toggle_pause())
+
+        # Initialize game elements
+        self.food = self.create_food()
+        self.power_up = None
+
+    def create_table(self):
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS highscores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                score INTEGER NOT NULL,
+                difficulty TEXT NOT NULL,
+                date TEXT NOT NULL
+            )
+        ''')
+        self.conn.commit()
+
+    def start_game(self):
+        if not self.game_over and not self.paused:
+            return
+        self.difficulty = self.difficulty_var.get()
+        self.snake = [(100, 100)]
+        self.direction = "right"
+        self.score = 0
+        self.score_var.set("Score: 0")
+        self.game_over = False
+        self.paused = False
+        self.canvas.delete("all")
+        self.food = self.create_food()
+        self.power_up = None
+        self.draw_snake()
+        self.move()
+
+    def create_food(self):
+        x = random.randrange(0, self.GAME_WIDTH, self.SQUARE_SIZE)
+        y = random.randrange(0, self.GAME_HEIGHT, self.SQUARE_SIZE)
+        self.canvas.create_oval(x, y, x + self.SQUARE_SIZE, y + self.SQUARE_SIZE, fill="red", tag="food")
+        return (x, y)
+
+    def create_power_up(self):
+        if random.random() < 0.1:  # 10% chance to spawn power-up
+            x = random.randrange(0, self.GAME_WIDTH, self.SQUARE_SIZE)
+            y = random.randrange(0, self.GAME_HEIGHT, self.SQUARE_SIZE)
+            self.canvas.create_rectangle(x, y, x + self.SQUARE_SIZE, y + self.SQUARE_SIZE, fill="yellow", tag="power_up")
+            return (x, y)
+        return None
+
+    def draw_snake(self):
+        self.canvas.delete("snake")
+        for x, y in self.snake:
+            self.canvas.create_rectangle(x, y, x + self.SQUARE_SIZE, y + self.SQUARE_SIZE, fill="green", tag="snake")
+
+    def change_direction(self, new_direction):
+        if self.paused or self.game_over:
+            return
+        opposites = {"left": "right", "right": "left", "up": "down", "down": "up"}
+        if new_direction != opposites.get(self.direction):
+            self.direction = new_direction
+
+    def toggle_pause(self):
+        if self.game_over:
+            return
+        self.paused = not self.paused
+        if not self.paused:
+            self.move()
+
+    def move(self):
+        if self.paused or self.game_over:
+            return
+
+        head_x, head_y = self.snake[0]
+        if self.direction == "right":
+            head_x += self.SQUARE_SIZE
+        elif self.direction == "left":
+            head_x -= self.SQUARE_SIZE
+        elif self.direction == "up":
+            head_y -= self.SQUARE_SIZE
+        elif self.direction == "down":
+            head_y += self.SQUARE_SIZE
+
+        # Check boundaries
+        if head_x < 0 or head_x >= self.GAME_WIDTH or head_y < 0 or head_y >= self.GAME_HEIGHT or (head_x, head_y) in self.snake:
+            self.game_over = True
+            self.save_high_score()
+            messagebox.showinfo("Game Over", f"Score: {self.score}\nHigh score saved!")
+            return
+
+        # Move snake
+        self.snake.insert(0, (head_x, head_y))
+
+        # Check for food
+        if (head_x, head_y) == self.food:
+            self.score += 10
+            self.score_var.set(f"Score: {self.score}")
+            self.canvas.delete("food")
+            self.food = self.create_food()
+        elif (head_x, head_y) == self.power_up:
+            self.score += 20  # Double points for power-up
+            self.score_var.set(f"Score: {self.score}")
+            self.canvas.delete("power_up")
+            self.power_up = None
+        else:
+            self.snake.pop()
+
+        # Draw snake
+        self.draw_snake()
+
+        # Spawn power-up randomly
+        if not self.power_up:
+            self.power_up = self.create_power_up()
+
+        # Continue moving
+        self.root.after(self.SPEED[self.difficulty], self.move)
+
+    def save_high_score(self):
+        cursor = self.conn.cursor()
+        cursor.execute("INSERT INTO highscores (score, difficulty, date) VALUES (?, ?, ?)",
+                      (self.score, self.difficulty, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        self.conn.commit()
+
+    def view_high_scores(self):
+        highscore_window = tk.Toplevel(self.root)
+        highscore_window.title("High Scores")
+        highscore_window.geometry("400x300")
+
+        tree = ttk.Treeview(highscore_window, columns=("Score", "Difficulty", "Date"), show="headings")
+        tree.heading("Score", text="Score")
+        tree.heading("Difficulty", text="Difficulty")
+        tree.heading("Date", text="Date")
+        tree.column("Score", width=100)
+        tree.column("Difficulty", width=100)
+        tree.column("Date", width=150)
+        tree.pack(fill="both", expand=True, padx=10, pady=10)
+
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT score, difficulty, date FROM highscores ORDER BY score DESC LIMIT 10")
+        for row in cursor.fetchall():
+            tree.insert("", tk.END, values=row)
+
+    def __del__(self):
+        self.conn.close()
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = SnakeGame(root)
+    root.mainloop()
