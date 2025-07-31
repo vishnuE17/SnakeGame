@@ -186,15 +186,4 @@ class SnakeGame:
         tree.column("Date", width=150)
         tree.pack(fill="both", expand=True, padx=10, pady=10)
 
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT score, difficulty, date FROM highscores ORDER BY score DESC LIMIT 10")
-        for row in cursor.fetchall():
-            tree.insert("", tk.END, values=row)
-
-    def __del__(self):
-        self.conn.close()
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = SnakeGame(root)
-    root.mainloop()
+ 
