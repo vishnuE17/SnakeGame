@@ -1,0 +1,18 @@
+   }
+
+    // Get game state
+    function getGameState(address player)
+        external
+        view
+        returns (
+            uint256 score,
+            bool isActive,
+            uint256[2][] memory snake,
+            uint256[2] memory food,
+            uint256 gridSize
+        )
+    {
+        Game memory game = games[player];
+        return (game.score, game.isActive, game.snake, game.food, game.gridSize);
+    }
+}
