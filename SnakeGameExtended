@@ -177,13 +177,6 @@ class SnakeGame:
         highscore_window.title("High Scores")
         highscore_window.geometry("400x300")
 
-        tree = ttk.Treeview(highscore_window, columns=("Score", "Difficulty", "Date"), show="headings")
-        tree.heading("Score", text="Score")
-        tree.heading("Difficulty", text="Difficulty")
-        tree.heading("Date", text="Date")
-        tree.column("Score", width=100)
-        tree.column("Difficulty", width=100)
-        tree.column("Date", width=150)
-        tree.pack(fill="both", expand=True, padx=10, pady=10)
+       
 
  
