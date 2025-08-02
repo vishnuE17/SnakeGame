@@ -102,10 +102,4 @@ contract SnakeGame is Ownable {
         emit MoveMade(msg.sender, direction, game.score);
     }
 
-    // End game
-    function endGame() external {
-        require(games[msg.sender].isActive, "No active game");
-        uint256 finalScore = games[msg.sender].score;
-        games[msg.sender].isActive = false;
-        emit GameOver(msg.sender, finalScore);
  
